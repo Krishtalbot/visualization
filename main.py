@@ -17,4 +17,11 @@ else:
     os.chdir(r"C:\Users\krish\OneDrive\Desktop\Dev\projects\Corruption_vs_gdp_vs_happiness")
     df = pd.read_csv('datasets/merged.csv', encoding='ISO-8859-1')
 
+st.sidebar.header("Choose continent: ")
+continent = st.sidebar.multiselect('Continent', df['Continent'].unique())
+if not continent:
+    df2 = df.copy()
+else:
+    df2 = df[df['Continent'].isin(continent)]
+
 

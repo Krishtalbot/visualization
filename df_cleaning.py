@@ -3,12 +3,14 @@ import pandas as pd
 corruption_df = pd.read_csv('datasets/corruption.csv')
 gdp_df = pd.read_csv('datasets/gdp_all.csv')
 happiness_df = pd.read_csv('datasets/happiness_index.csv')
+continent_df = pd.read_csv('datasets/continent.csv')
 
 corruption_df.set_index('Country', inplace=True)
 gdp_df.set_index('Country', inplace=True)
 happiness_df.set_index('Country', inplace=True)
+continent_df.set_index('Country', inplace=True)
 
-df = corruption_df.merge(gdp_df,on='Country').merge(happiness_df,on='Country')
+df = corruption_df.merge(gdp_df,on='Country').merge(happiness_df,on='Country').merge(continent_df,on='Country')
 
 df['GDP'] = df['GDP'].replace({r'\$':'', ',':''}, regex=True).astype(float)
 df['Unemployment rate'] = df['Unemployment rate'].str.replace('%', '').astype(float)
