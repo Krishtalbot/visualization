@@ -3,18 +3,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
-import os
+from sklearn.cluster import KMeans
 
 st.set_page_config(page_title='Data Visualization', page_icon='📊', layout='wide')
 st.markdown('<style>div.block-container{padding-top: 1rem;}</style>', unsafe_allow_html=True)
 st.title('Visualization of Corruption, GDP and Happiness')
-
-# File uploader
-# fl = st.file_uploader(':file_folder: Upload your dataset', type=(['csv', 'txt', 'xlsx', 'xls']))
-# if fl is not None:
-#     filename = fl.name
-#     st.write(filename)
-#     df = pd.read_csv(f'datasets/{filename}', encoding='ISO-8859-1')
 
 df = pd.read_csv(f'datasets/merged.csv', encoding='ISO-8859-1')
 
@@ -31,6 +24,7 @@ if not country:
 else:
     df3 = df2[df2['Country'].isin(country)]
 
+
 if not continent and not country:
     filtered_df = df
 elif not country:
@@ -39,6 +33,7 @@ elif not continent:
     filtered_df = df[df['Country'].isin(country)]
 else:
     filtered_df = df3[df3['Country'].isin(country) & df3['Continent'].isin(continent)]
+
 
 st.sidebar.header("Metric for average visualization:")
 metric = st.sidebar.selectbox(
@@ -120,7 +115,7 @@ with col2:
     margin=dict(t=20, b=10),)
     st.plotly_chart(fig, use_container_width=True)
 
-st.subheader("Scatter Plot of X vs Y")
+st.subheader("Scatter Plot")
 
 col3, col4 = st.columns(2)
 with col3:  
@@ -148,4 +143,53 @@ scatter_fig.update_layout(
 )
 
 st.plotly_chart(scatter_fig, use_container_width=True)
+
+st.subheader("Heatmap: Correlation Matrix")
+
+
+# Clustering Analysis
+st.subheader("Cluster Analysis")
+cluster_features = ['CPI_Score', 'GDP', 'Happiness_Score']
+if all(feature in filtered_df.columns for feature in cluster_features):
+    kmeans = KMeans(n_clusters=3, random_state=42)
+    filtered_df['Cluster'] = kmeans.fit_predict(filtered_df[cluster_features].dropna())
+
+    cluster_fig = px.scatter(
+        filtered_df,
+        x='CPI_Score',
+        y='Happiness_Score',
+        color='Cluster',
+        size='GDP',
+        hover_name='Country',
+        title="Clusters of Countries Based on CPI, GDP, and Happiness Scores",
+        labels={'Cluster': 'Cluster Group'}
+    )
+    st.plotly_chart(cluster_fig, use_container_width=True)
+
+# Standard Error Visualization
+st.subheader("Standard Errors for CPI and Happiness Scores")
+se_df = filtered_df.groupby('Continent')[['CPI_Score', 'Happiness_Score']].agg(['mean', 'sem']).reset_index()
+se_df.columns = ['Continent', 'CPI_Mean', 'CPI_SE', 'Happiness_Mean', 'Happiness_SE']
+
+fig_cpi = px.bar(
+    se_df,
+    x='Continent',
+    y='CPI_Mean',
+    error_y='CPI_SE',
+    title="CPI Scores with Standard Errors by Continent",
+    labels={'CPI_Mean': 'Mean CPI Score', 'Continent': 'Continent'},
+    color='Continent'
+)
+st.plotly_chart(fig_cpi, use_container_width=True)
+
+fig_happiness = px.bar(
+    se_df,
+    x='Continent',
+    y='Happiness_Mean',
+    error_y='Happiness_SE',
+    title="Happiness Scores with Standard Errors by Continent",
+    labels={'Happiness_Mean': 'Mean Happiness Score', 'Continent': 'Continent'},
+    color='Continent'
+)
+st.plotly_chart(fig_happiness, use_container_width=True)
 
