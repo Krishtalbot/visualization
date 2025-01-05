@@ -144,27 +144,38 @@ scatter_fig.update_layout(
 
 st.plotly_chart(scatter_fig, use_container_width=True)
 
-st.subheader("Heatmap: Correlation Matrix")
 
-
-# Clustering Analysis
 st.subheader("Cluster Analysis")
-cluster_features = ['CPI_Score', 'GDP', 'Happiness_Score']
-if all(feature in filtered_df.columns for feature in cluster_features):
-    kmeans = KMeans(n_clusters=3, random_state=42)
-    filtered_df['Cluster'] = kmeans.fit_predict(filtered_df[cluster_features].dropna())
+cluster_features_all = ['CPI_Score', 'GDP', 'Happiness_Score']
+selected_features = st.multiselect("Select features for clustering", cluster_features_all, default=cluster_features_all[:3])
 
-    cluster_fig = px.scatter(
-        filtered_df,
-        x='CPI_Score',
-        y='Happiness_Score',
-        color='Cluster',
-        size='GDP',
-        hover_name='Country',
-        title="Clusters of Countries Based on CPI, GDP, and Happiness Scores",
-        labels={'Cluster': 'Cluster Group'}
-    )
-    st.plotly_chart(cluster_fig, use_container_width=True)
+if len(selected_features) >= 2:  # Ensure at least two features are selected
+    if all(feature in filtered_df.columns for feature in selected_features):
+        kmeans = KMeans(n_clusters=3, random_state=42)
+        filtered_df['Cluster'] = kmeans.fit_predict(filtered_df[selected_features].dropna())
+
+        cluster_fig_3d = px.scatter_3d(
+            filtered_df,
+            x=selected_features[0],
+            y=selected_features[1],
+            z=selected_features[2] if len(selected_features) > 2 else selected_features[1],
+            color='Cluster',
+            size='Happiness_Score',
+            hover_name='Country',
+            title="3D Clusters of Countries Based on Selected Features",
+            labels={'Cluster': 'Cluster Group'},
+            template='plotly_dark'
+        )
+        cluster_fig_3d.update_layout(
+            legend_title=dict(text='Cluster Group'),
+            margin={"r": 0, "t": 50, "l": 0, "b": 0},
+            paper_bgcolor="#0E1117",
+            font=dict(color="white")
+        )
+        st.plotly_chart(cluster_fig_3d, use_container_width=True)
+else:
+    st.warning("Please select at least two features for clustering.")
+
 
 # Standard Error Visualization
 st.subheader("Standard Errors for CPI and Happiness Scores")
@@ -192,4 +203,3 @@ fig_happiness = px.bar(
     color='Continent'
 )
 st.plotly_chart(fig_happiness, use_container_width=True)
-
