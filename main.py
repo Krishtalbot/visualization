@@ -3,6 +3,7 @@ import streamlit as st
 import plotly.express as px
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import IsolationForest
 
 st.set_page_config(page_title='Data Visualization', page_icon='📊', layout='wide')
 st.markdown('<style>div.block-container{padding-top: 1rem;}</style>', unsafe_allow_html=True)
@@ -37,7 +38,7 @@ else:
 st.sidebar.header("Metric for average visualization:")
 metric = st.sidebar.selectbox(
     "Select a metric",
-    options=['Happiness_Score', 'CPI_Score', 'GDP', 'Freedom_Index'],
+    options=['Happiness_Score', 'CPI_Score', 'GDP', 'Freedom_Index', 'Unemployment_Rate'],
     index=0
 )
 
@@ -145,6 +146,49 @@ scatter_fig.update_layout(
 
 st.plotly_chart(scatter_fig, use_container_width=True)
 
+metrics = ['Happiness_Score', 'CPI_Score', 'Freedom_Index', 'Unemployment_Rate'] 
+global_avg = filtered_df[metrics].mean()
+
+continent_avg = filtered_df.groupby('Continent')[metrics].mean()
+
+deviation_df = continent_avg - global_avg
+
+deviation_df.reset_index(inplace=True)
+
+heatmap_melted = deviation_df.melt(
+    id_vars='Continent',
+    var_name='Metric',
+    value_name='Deviation'
+)
+
+heatmap_pivot = heatmap_melted.pivot(index='Metric', columns='Continent', values='Deviation')
+
+import plotly.graph_objects as go
+
+heatmap_fig = go.Figure(
+    data=go.Heatmap(
+        z=heatmap_pivot.values,
+        x=heatmap_pivot.columns,
+        y=heatmap_pivot.index,
+        colorscale="RdBu",
+        colorbar=dict(title="Deviation"),
+        text=heatmap_pivot.round(2).values, 
+        texttemplate="%{text}", 
+        textfont=dict(size=10), 
+    )
+)
+
+heatmap_fig.update_layout(
+    title="Deviation of Metrics from Global Averages by Continent",
+    xaxis=dict(title="Continent", tickangle=45, side="top"),
+    yaxis=dict(title="Metric"),
+    paper_bgcolor="#0E1117",
+    plot_bgcolor="#0E1117",
+    font=dict(color="white"),
+    margin={"r": 0, "t": 50, "l": 0, "b": 50}
+)
+
+st.plotly_chart(heatmap_fig, use_container_width=True)
 
 st.subheader("Cluster Analysis")
 num_clusters = st.slider("Select Number of Clusters", min_value=2, max_value=10, value=3)
@@ -165,7 +209,6 @@ filtered_df['Cluster'] = kmeans.fit_predict(scaled_data)
 centroids = kmeans.cluster_centers_
 centroids_df = pd.DataFrame(scaler.inverse_transform(centroids), columns=cluster_features)
 
-# Scatter Plot with Centroids and Improved Cluster Colors
 cluster_fig = px.scatter(
     filtered_df,
     x=x_axis,
@@ -174,7 +217,7 @@ cluster_fig = px.scatter(
     hover_name='Country',
     title=f"Cluster Analysis: {x_axis.replace('_', ' ')} vs {y_axis.replace('_', ' ')}",
     labels={'Cluster': 'Cluster', x_axis: x_axis.replace('_', ' '), y_axis: y_axis.replace('_', ' ')},
-    color_discrete_sequence=px.colors.qualitative.Plotly,  # Vibrant and distinct colors
+    color_discrete_sequence=px.colors.qualitative.Plotly,
 )
 
 # Add centroids to the plot
@@ -195,32 +238,27 @@ cluster_fig.update_layout(
     margin={"r": 0, "t": 50, "l": 0, "b": 0}
 )
 
-# Display Plot
 st.plotly_chart(cluster_fig, use_container_width=True)
-
 
 st.subheader("Box and Whiskers Plot for Standard Errors")
 
-# Dropdown for user selection
 metric_selection = st.selectbox(
     "Select a Metric to Display",
     options=['CPI_Score', 'Happiness_Score'],
     index=0
 )
 
-# Create box plot for the selected metric
 box_fig = px.box(
     filtered_df,
     x='Continent',
     y=metric_selection,
-    points='all',  # Show individual data points
+    points='all',
     title=f"{metric_selection.replace('_', ' ')} Scores by Continent",
     labels={metric_selection: f"{metric_selection.replace('_', ' ')} Score", 'Continent': 'Continent'},
     color='Continent',
-    color_discrete_sequence=px.colors.qualitative.Plotly  # Vibrant colors for distinct continents
+    color_discrete_sequence=px.colors.qualitative.Plotly
 )
 
-# Update layout for better visualization
 box_fig.update_layout(
     paper_bgcolor="#0E1117",
     plot_bgcolor="#0E1117",
@@ -228,6 +266,59 @@ box_fig.update_layout(
     margin={"r": 0, "t": 50, "l": 0, "b": 0}
 )
 
-# Display the box plot
 st.plotly_chart(box_fig, use_container_width=True)
+
+st.subheader("Anomaly Detection")
+
+anomaly_metric = st.selectbox(
+    "Select a metric for anomaly detection:",
+    options=['GDP', 'CPI_Score', 'Happiness_Score'],
+    index=0
+)
+
+# Z-Score Anomaly Detection
+z_scores = (filtered_df[anomaly_metric] - filtered_df[anomaly_metric].mean()) / filtered_df[anomaly_metric].std()
+filtered_df['Z_Score'] = z_scores
+filtered_df['Z_Anomaly'] = z_scores.abs() > 2.5
+
+iso_forest = IsolationForest(contamination=0.025, random_state=42)
+filtered_df['Isolation_Anomaly'] = iso_forest.fit_predict(filtered_df[[anomaly_metric]])
+filtered_df['Isolation_Anomaly'] = filtered_df['Isolation_Anomaly'].apply(lambda x: x == -1)  # Convert to boolean
+
+st.markdown(f"<h3 style='color:#FAFAFA;'>Scatter Plot for {anomaly_metric.replace('_', ' ')}</h3>", unsafe_allow_html=True)
+anomaly_fig = px.scatter(
+    filtered_df,
+    x='Country',
+    y=anomaly_metric,
+    color='Z_Anomaly',
+    symbol='Isolation_Anomaly',
+    title=f"Anomaly Detection for {anomaly_metric.replace('_', ' ')}",
+    hover_name='Country',
+    labels={
+        anomaly_metric: anomaly_metric.replace('_', ' '),
+        'Z_Anomaly': 'Z-Score Anomaly',
+        'Isolation_Anomaly': 'Isolation Forest Anomaly'
+    },
+    color_discrete_map={True: 'red', False: 'blue'},
+    symbol_map={True: 'x', False: 'circle'}
+)
+anomaly_fig.update_layout(
+    paper_bgcolor="#0E1117",
+    plot_bgcolor="#0E1117",
+    font=dict(color="white"),
+    margin={"r": 0, "t": 50, "l": 0, "b": 0}
+)
+st.plotly_chart(anomaly_fig, use_container_width=True)
+
+
+st.markdown(f"<h3 style='color:#FAFAFA;'>Detected Anomalies for {anomaly_metric.replace('_', ' ')}</h3>", unsafe_allow_html=True)
+z_anomalies = filtered_df[filtered_df['Z_Anomaly']]
+isolation_anomalies = filtered_df[filtered_df['Isolation_Anomaly']]
+col1, col2 = st.columns(2)
+with col1:
+    st.write("**Z-Score Anomalies:**")
+    st.dataframe(z_anomalies[['Country', anomaly_metric, 'Z_Score']])
+with col2:
+    st.write("**Isolation Forest Anomalies:**")
+    st.dataframe(isolation_anomalies[['Country', anomaly_metric]])
 
