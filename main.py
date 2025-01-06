@@ -285,7 +285,6 @@ iso_forest = IsolationForest(contamination=0.025, random_state=42)
 filtered_df['Isolation_Anomaly'] = iso_forest.fit_predict(filtered_df[[anomaly_metric]])
 filtered_df['Isolation_Anomaly'] = filtered_df['Isolation_Anomaly'].apply(lambda x: x == -1)  # Convert to boolean
 
-st.markdown(f"<h3 style='color:#FAFAFA;'>Scatter Plot for {anomaly_metric.replace('_', ' ')}</h3>", unsafe_allow_html=True)
 anomaly_fig = px.scatter(
     filtered_df,
     x='Country',
@@ -299,7 +298,7 @@ anomaly_fig = px.scatter(
         'Z_Anomaly': 'Z-Score Anomaly',
         'Isolation_Anomaly': 'Isolation Forest Anomaly'
     },
-    color_discrete_map={True: 'red', False: 'blue'},
+    color_discrete_map={True: '#FF4B4B', False: '#00b300'},
     symbol_map={True: 'x', False: 'circle'}
 )
 anomaly_fig.update_layout(
