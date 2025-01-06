@@ -1,9 +1,8 @@
-from narwhals import col
-import numpy as np
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 st.set_page_config(page_title='Data Visualization', page_icon='📊', layout='wide')
 st.markdown('<style>div.block-container{padding-top: 1rem;}</style>', unsafe_allow_html=True)
@@ -52,9 +51,12 @@ st.markdown("""
 filtered_df['Formatted_GDP'] = filtered_df['GDP'].apply(lambda x: f"${x:,.0f}")
 
 hover_data = {
+    "CPI_Rank": True,
     "CPI_Score": True,
     "Formatted_GDP": True,
-    "Happiness_Score": True
+    "Happiness_Score": True,
+    "Continent": False,
+    "Country": False,
 }
 
 fig = px.choropleth(
@@ -130,7 +132,6 @@ scatter_fig = px.scatter(
     y=y_axis,
     color='Continent',
     hover_name='Country',
-    # size='GDP' if 'GDP' in filtered_df.columns else None, 
     title=f"{x_axis.replace('_', ' ')} vs {y_axis.replace('_', ' ')}",
     labels={x_axis: x_axis.replace('_', ' '), y_axis: y_axis.replace('_', ' ')},
 )
@@ -146,60 +147,87 @@ st.plotly_chart(scatter_fig, use_container_width=True)
 
 
 st.subheader("Cluster Analysis")
-cluster_features_all = ['CPI_Score', 'GDP', 'Happiness_Score']
-selected_features = st.multiselect("Select features for clustering", cluster_features_all, default=cluster_features_all[:3])
+num_clusters = st.slider("Select Number of Clusters", min_value=2, max_value=10, value=3)
 
-if len(selected_features) >= 2:  # Ensure at least two features are selected
-    if all(feature in filtered_df.columns for feature in selected_features):
-        kmeans = KMeans(n_clusters=3, random_state=42)
-        filtered_df['Cluster'] = kmeans.fit_predict(filtered_df[selected_features].dropna())
+col5, col6 = st.columns(2)
+with col5:
+    x_axis = st.selectbox("Select X-axis for Clustering", ['CPI_Score', 'Happiness_Score', 'GDP'], index=0)
+with col6:
+    y_axis = st.selectbox("Select Y-axis for Clustering", ['CPI_Score', 'Happiness_Score', 'GDP'], index=1)
 
-        cluster_fig_3d = px.scatter_3d(
-            filtered_df,
-            x=selected_features[0],
-            y=selected_features[1],
-            z=selected_features[2] if len(selected_features) > 2 else selected_features[1],
-            color='Cluster',
-            size='Happiness_Score',
-            hover_name='Country',
-            title="3D Clusters of Countries Based on Selected Features",
-            labels={'Cluster': 'Cluster Group'},
-            template='plotly_dark'
-        )
-        cluster_fig_3d.update_layout(
-            legend_title=dict(text='Cluster Group'),
-            margin={"r": 0, "t": 50, "l": 0, "b": 0},
-            paper_bgcolor="#0E1117",
-            font=dict(color="white")
-        )
-        st.plotly_chart(cluster_fig_3d, use_container_width=True)
-else:
-    st.warning("Please select at least two features for clustering.")
+cluster_features = ['CPI_Score', 'GDP', 'Happiness_Score']
+scaler = StandardScaler()
+scaled_data = scaler.fit_transform(filtered_df[cluster_features])
 
+kmeans = KMeans(n_clusters=num_clusters, random_state=42)
+filtered_df['Cluster'] = kmeans.fit_predict(scaled_data)
 
-# Standard Error Visualization
-st.subheader("Standard Errors for CPI and Happiness Scores")
-se_df = filtered_df.groupby('Continent')[['CPI_Score', 'Happiness_Score']].agg(['mean', 'sem']).reset_index()
-se_df.columns = ['Continent', 'CPI_Mean', 'CPI_SE', 'Happiness_Mean', 'Happiness_SE']
+centroids = kmeans.cluster_centers_
+centroids_df = pd.DataFrame(scaler.inverse_transform(centroids), columns=cluster_features)
 
-fig_cpi = px.bar(
-    se_df,
-    x='Continent',
-    y='CPI_Mean',
-    error_y='CPI_SE',
-    title="CPI Scores with Standard Errors by Continent",
-    labels={'CPI_Mean': 'Mean CPI Score', 'Continent': 'Continent'},
-    color='Continent'
+# Scatter Plot with Centroids and Improved Cluster Colors
+cluster_fig = px.scatter(
+    filtered_df,
+    x=x_axis,
+    y=y_axis,
+    color='Cluster',
+    hover_name='Country',
+    title=f"Cluster Analysis: {x_axis.replace('_', ' ')} vs {y_axis.replace('_', ' ')}",
+    labels={'Cluster': 'Cluster', x_axis: x_axis.replace('_', ' '), y_axis: y_axis.replace('_', ' ')},
+    color_discrete_sequence=px.colors.qualitative.Plotly,  # Vibrant and distinct colors
 )
-st.plotly_chart(fig_cpi, use_container_width=True)
 
-fig_happiness = px.bar(
-    se_df,
-    x='Continent',
-    y='Happiness_Mean',
-    error_y='Happiness_SE',
-    title="Happiness Scores with Standard Errors by Continent",
-    labels={'Happiness_Mean': 'Mean Happiness Score', 'Continent': 'Continent'},
-    color='Continent'
+# Add centroids to the plot
+cluster_fig.add_scatter(
+    x=centroids_df[x_axis],
+    y=centroids_df[y_axis],
+    mode='markers+text',
+    marker=dict(symbol='x', size=10, color='black'),
+    text=['Centroid'] * num_clusters,
+    textposition='top center',
+    name='Centroids',
 )
-st.plotly_chart(fig_happiness, use_container_width=True)
+
+cluster_fig.update_layout(
+    paper_bgcolor="#0E1117",
+    plot_bgcolor="#0E1117",
+    font=dict(color="white"),
+    margin={"r": 0, "t": 50, "l": 0, "b": 0}
+)
+
+# Display Plot
+st.plotly_chart(cluster_fig, use_container_width=True)
+
+
+st.subheader("Box and Whiskers Plot for Standard Errors")
+
+# Dropdown for user selection
+metric_selection = st.selectbox(
+    "Select a Metric to Display",
+    options=['CPI_Score', 'Happiness_Score'],
+    index=0
+)
+
+# Create box plot for the selected metric
+box_fig = px.box(
+    filtered_df,
+    x='Continent',
+    y=metric_selection,
+    points='all',  # Show individual data points
+    title=f"{metric_selection.replace('_', ' ')} Scores by Continent",
+    labels={metric_selection: f"{metric_selection.replace('_', ' ')} Score", 'Continent': 'Continent'},
+    color='Continent',
+    color_discrete_sequence=px.colors.qualitative.Plotly  # Vibrant colors for distinct continents
+)
+
+# Update layout for better visualization
+box_fig.update_layout(
+    paper_bgcolor="#0E1117",
+    plot_bgcolor="#0E1117",
+    font=dict(color="white"),
+    margin={"r": 0, "t": 50, "l": 0, "b": 0}
+)
+
+# Display the box plot
+st.plotly_chart(box_fig, use_container_width=True)
+
