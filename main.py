@@ -180,8 +180,6 @@ heatmap_fig = go.Figure(
 
 heatmap_fig.update_layout(
     title="Deviation of Metrics from Global Averages by Continent",
-    xaxis=dict(title="Continent", tickangle=45, side="top"),
-    yaxis=dict(title="Metric"),
     paper_bgcolor="#0E1117",
     plot_bgcolor="#0E1117",
     font=dict(color="white"),
@@ -256,6 +254,7 @@ box_fig = px.box(
     title=f"{metric_selection.replace('_', ' ')} Scores by Continent",
     labels={metric_selection: f"{metric_selection.replace('_', ' ')} Score", 'Continent': 'Continent'},
     color='Continent',
+    hover_name='Country',
     color_discrete_sequence=px.colors.qualitative.Plotly
 )
 
@@ -270,21 +269,24 @@ st.plotly_chart(box_fig, use_container_width=True)
 
 st.subheader("Anomaly Detection")
 
+# Select the metric for anomaly detection
 anomaly_metric = st.selectbox(
     "Select a metric for anomaly detection:",
     options=['GDP', 'CPI_Score', 'Happiness_Score'],
     index=0
 )
 
-# Z-Score Anomaly Detection
+# Calculate Z-Scores and anomalies
 z_scores = (filtered_df[anomaly_metric] - filtered_df[anomaly_metric].mean()) / filtered_df[anomaly_metric].std()
 filtered_df['Z_Score'] = z_scores
 filtered_df['Z_Anomaly'] = z_scores.abs() > 2.5
 
+# Isolation Forest anomaly detection
 iso_forest = IsolationForest(contamination=0.025, random_state=42)
 filtered_df['Isolation_Anomaly'] = iso_forest.fit_predict(filtered_df[[anomaly_metric]])
 filtered_df['Isolation_Anomaly'] = filtered_df['Isolation_Anomaly'].apply(lambda x: x == -1)  # Convert to boolean
 
+# Plot anomalies
 anomaly_fig = px.scatter(
     filtered_df,
     x='Country',
@@ -309,15 +311,32 @@ anomaly_fig.update_layout(
 )
 st.plotly_chart(anomaly_fig, use_container_width=True)
 
-
+# Display detected anomalies
 st.markdown(f"<h3 style='color:#FAFAFA;'>Detected Anomalies for {anomaly_metric.replace('_', ' ')}</h3>", unsafe_allow_html=True)
 z_anomalies = filtered_df[filtered_df['Z_Anomaly']]
 isolation_anomalies = filtered_df[filtered_df['Isolation_Anomaly']]
-col1, col2 = st.columns(2)
+
+# Conditional formatting for GDP values
+if anomaly_metric == 'GDP':
+    z_anomalies['GDP'] = z_anomalies['GDP'].apply(lambda x: f"${int(x):,}")
+    isolation_anomalies['GDP'] = isolation_anomalies['GDP'].apply(lambda x: f"${int(x):,}")
+
+col1, col2 = st.columns([2, 2])
+
 with col1:
     st.write("**Z-Score Anomalies:**")
-    st.dataframe(z_anomalies[['Country', anomaly_metric, 'Z_Score']])
+    st.dataframe(
+        z_anomalies[['Country', anomaly_metric, 'Z_Score']].style.set_table_styles(
+            [{'selector': 'th', 'props': [('text-align', 'center')]},
+             {'selector': 'td', 'props': [('text-align', 'center')]}]
+        )
+    )
+
 with col2:
     st.write("**Isolation Forest Anomalies:**")
-    st.dataframe(isolation_anomalies[['Country', anomaly_metric]])
-
+    st.dataframe(
+        isolation_anomalies[['Country', anomaly_metric]].style.set_table_styles(
+            [{'selector': 'th', 'props': [('text-align', 'center')]},
+             {'selector': 'td', 'props': [('text-align', 'center')]}]
+        )
+    )
