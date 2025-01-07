@@ -4,6 +4,8 @@ import plotly.express as px
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
+import plotly.graph_objects as go
+
 
 st.set_page_config(page_title='Data Visualization', page_icon='📊', layout='wide')
 st.markdown('<style>div.block-container{padding-top: 1rem;}</style>', unsafe_allow_html=True)
@@ -160,10 +162,7 @@ heatmap_melted = deviation_df.melt(
     var_name='Metric',
     value_name='Deviation'
 )
-
 heatmap_pivot = heatmap_melted.pivot(index='Metric', columns='Continent', values='Deviation')
-
-import plotly.graph_objects as go
 
 heatmap_fig = go.Figure(
     data=go.Heatmap(
@@ -177,9 +176,9 @@ heatmap_fig = go.Figure(
         textfont=dict(size=10), 
     )
 )
-
+st.markdown('''<h2 style="color:#FAFAFA; font-size:2rem; margin-bottom:-2rem; margin-top:2rem; ">Deviation of Metrics from Global Averages</h2>'''.format(metric.replace('_', ' ')), 
+                unsafe_allow_html=True)
 heatmap_fig.update_layout(
-    title="Deviation of Metrics from Global Averages by Continent",
     paper_bgcolor="#0E1117",
     plot_bgcolor="#0E1117",
     font=dict(color="white"),
@@ -218,7 +217,6 @@ cluster_fig = px.scatter(
     color_discrete_sequence=px.colors.qualitative.Plotly,
 )
 
-# Add centroids to the plot
 cluster_fig.add_scatter(
     x=centroids_df[x_axis],
     y=centroids_df[y_axis],
@@ -269,7 +267,6 @@ st.plotly_chart(box_fig, use_container_width=True)
 
 st.subheader("Anomaly Detection")
 
-# Select the metric for anomaly detection
 anomaly_metric = st.selectbox(
     "Select a metric for anomaly detection:",
     options=['GDP', 'CPI_Score', 'Happiness_Score'],
