@@ -45,7 +45,7 @@ metric = st.sidebar.selectbox(
 )
 
 st.markdown("""
-    <h2 style="color:#E09145; font-size:24px; text-align:center; font-weight: bold; font-size: 2rem;">
+    <h2 style="color:#E09146; font-size:24px; text-align:center; font-weight: bold; font-size: 2rem;">
         Global Map
     </h2>
     """,
